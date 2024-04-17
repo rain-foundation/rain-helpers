@@ -68,3 +68,25 @@ pub struct Loan {
 impl anchor_lang::Discriminator for Loan {
     const DISCRIMINATOR: [u8; 8] = [20, 195, 70, 117, 165, 227, 182, 1];
 }
+
+pub fn compute_dynamic_interest(loan: &Loan, current_timestamp: i64) -> u64 {
+    if loan.kind == LoanKind::Mortgage {
+        // No early repay of mortgages
+        return loan.interest;
+    }
+
+    if current_timestamp as u64 > loan.expired_at {
+        return loan.interest;
+    }
+
+    // Dynamic interest based on time elapsed
+    // We round up to 1 hour so the frontend can compute in advance the exact
+    // amount needed when the transaction is executed
+    let time_elapsed = ((current_timestamp as u64 - loan.created_at) / 3600) + 1;
+    let mut dynamic_interest = (time_elapsed * loan.interest) / (loan.duration / 3600);
+    if dynamic_interest < (30 * loan.interest / 100) {
+        dynamic_interest = 30 * loan.interest / 100
+    }
+
+    dynamic_interest
+}
